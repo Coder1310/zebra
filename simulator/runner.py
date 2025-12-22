@@ -1,11 +1,35 @@
 import requests
-from typing import Dict
+import csv
+from pathlib import Path
+from typing import Dict, List, Any
 
 from strategy.types import PlayerState, BeliefState, Action
 from strategy.base_strategy import decide_action
+from strategy.metrics import calc_sa
 
 
 BASE_URL = "http://127.0.0.1:8000"
+
+def get_log() -> List[Dict[str, Any]]:
+  resp = requests.get(f"{BASE_URL}/log")
+  resp.raise_for_status()
+  data: List[Dict[str, Any]] = resp.json()
+  return data
+
+def save_log_csv(events: List[Dict[str, Any]], filename: str = "data/logs/run1.csv") -> None:
+  path = Path(filename)
+  path.parent.mkdir(parents=True, exist_ok=True)
+
+  fieldnames = ["event_id", "day", "type", "who", "from_house", "to_house", "success"]
+
+  with path.open("w", newline="") as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    for e in events:
+      row = {name: e.get(name) for name in fieldnames}
+      writer.writerow(row)
+
+  print(f"log saved to {path}")
 
 
 def send_tick() -> int:
@@ -59,13 +83,28 @@ def main() -> None:
     day = send_tick()
     print(f"=== day {day} ===")
 
-    state = get_state(player_id)
-    action, belief = decide_action(state, belief)
-    send_action(action)
+    # состояние ДО действия
+    state_before = get_state(player_id)
+    loc_before = state_before.you.get("location")
+    print(f"  before: location={loc_before}")
 
-    print(f"player={player_id}, action={action.type}")
+    action, belief = decide_action(state_before, belief)
+    sa_value = calc_sa(belief)
+
+    send_action(action)
+    print(f"  action: {action.type}, direction={action.direction}")
+    print(f"  SA: {sa_value:.2f}")
+
+    # состояние ПОСЛЕ действия
+    state_after = get_state(player_id)
+    loc_after = state_after.you.get("location")
+    print(f"  after:  location={loc_after}")
+    print()
 
   print("simulation finished")
+
+  events = get_log()
+  save_log_csv(events)
 
 
 if __name__ == "__main__":

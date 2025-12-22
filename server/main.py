@@ -162,6 +162,9 @@ def post_action(action: ActionRequest) -> dict:
 
   return {"status": "ok"}
 
+@app.get("/log", response_model = List[Event])
+def get_log() -> List[Event]:
+  return EVENT_LOG
 
 @app.post("/tick")
 def tick() -> dict:

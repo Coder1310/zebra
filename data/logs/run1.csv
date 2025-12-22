@@ -1,0 +1,6 @@
+event_id,day,type,who,from_house,to_house,success
+1,1,visit,german,2,2,True
+2,2,visit,german,2,1,True
+3,3,visit,german,1,6,True
+4,4,visit,german,6,5,True
+5,5,visit,german,5,4,True
