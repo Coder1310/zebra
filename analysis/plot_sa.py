@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 
 def read_sa(path: str) -> Dict[int, float]:
   out: Dict[int, float] = {}
-  with open(path, "r", newline="") as f:
-    reader = csv.DictReader(f, delimiter=";")
+  with open(path, "r", newline = "") as f:
+    reader = csv.DictReader(f, delimiter = ";")
     for r in reader:
       out[int(r["day"])] = float(r["avg_sa"])
   return out
@@ -28,9 +28,9 @@ def std(xs: List[float]) -> float:
 
 def main() -> None:
   ap = argparse.ArgumentParser()
-  ap.add_argument("--inputs", nargs="+", required=True)
-  ap.add_argument("--label", required=True)
-  ap.add_argument("--out", required=True)
+  ap.add_argument("--inputs", nargs = "+", required = True)
+  ap.add_argument("--label", required = True)
+  ap.add_argument("--out", required = True)
   args = ap.parse_args()
 
   runs = [read_sa(p) for p in args.inputs]
@@ -44,12 +44,12 @@ def main() -> None:
     y_mean.append(mean(vals))
     y_std.append(std(vals))
 
-  plt.errorbar(days, y_mean, yerr=y_std, marker="o", linewidth=1, label=args.label)
+  plt.errorbar(days, y_mean, yerr = y_std, marker = "o", linewidth = 1, label = args.label)
   plt.xlabel("day")
   plt.ylabel("avg SA")
-  plt.grid(True, alpha=0.3)
+  plt.grid(True, alpha = 0.3)
   plt.legend()
-  plt.savefig(args.out, dpi=200, bbox_inches="tight")
+  plt.savefig(args.out, dpi = 200, bbox_inches = "tight")
   print(f"saved {args.out}")
 
 

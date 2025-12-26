@@ -1,7 +1,5 @@
 from .types import BeliefState
 
-
-# пока считаем, что в мире 2 игрока: english и german
 N_PLAYERS = 2
 
 

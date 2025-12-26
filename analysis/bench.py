@@ -23,13 +23,15 @@ def std(xs: List[float]) -> float:
 
 def main() -> None:
   ap = argparse.ArgumentParser()
-  ap.add_argument("--max_agents", type=int, default=1000)
-  ap.add_argument("--step", type=int, default=50)
-  ap.add_argument("--days", type=int, default=200)
-  ap.add_argument("--runs", type=int, default=5)
-  ap.add_argument("--seed", type=int, default=1)
-  ap.add_argument("--share", choices=["none", "meet"], default="none")
-  ap.add_argument("--out", type=str, default="data/logs/bench.csv")
+  ap.add_argument("--max_agents", type = int, default = 1000)
+  ap.add_argument("--step", type = int, default = 50)
+  ap.add_argument("--days", type = int, default = 200)
+  ap.add_argument("--runs", type = int, default = 5)
+  ap.add_argument("--seed", type = int, default = 1)
+  ap.add_argument("--share", choices = ["none", "meet"], default = "none")
+  ap.add_argument("--houses", type = int, default = 6)
+  ap.add_argument("--noise", type = float, default = 0.0)
+  ap.add_argument("--out", type = str, default = "data/logs/bench.csv")
   args = ap.parse_args()
 
   rows = []
@@ -38,23 +40,28 @@ def main() -> None:
     times_ms: List[float] = []
 
     for r in range(args.runs):
-      agents = build_agents(
-        n_agents=n,
-        seed=args.seed + r,
-        zebra_init="data/zebra-01.csv",
-        zebra_strat="data/ZEBRA-strategies.csv",
+      agents, domains, houses = build_agents(
+        n_agents = n,
+        houses = args.houses,
+        seed = args.seed + r,
+        zebra_init = "data/zebra-01.csv",
+        zebra_strat = "data/ZEBRA-strategies.csv",
       )
 
       rng = random.Random(args.seed + r)
 
       t0 = time.perf_counter()
       run_sim(
-        agents=agents,
-        days=args.days,
-        rng=rng,
-        share_mode=args.share,
-        log_path=None,
-        sa_path=None,
+        agents = agents,
+        days = args.days,
+        rng = rng,
+        share_mode = args.share,
+        noise = args.noise,
+        n_houses = houses,
+        domains = domains,
+        log_path = None,
+        sa_path = None,
+        sa_sample = 50,
       )
       t1 = time.perf_counter()
 
@@ -62,15 +69,13 @@ def main() -> None:
 
     avg_ms = mean(times_ms)
     std_ms = std(times_ms)
-
     rows.append([n, avg_ms, std_ms])
-    print(f"n={n} avg_ms={avg_ms:.1f} std_ms={std_ms:.1f}")
+    print(f"n = {n} avg_ms ={ avg_ms:.1f} std_ms = {std_ms:.1f}")
 
   out = Path(args.out)
-  out.parent.mkdir(parents=True, exist_ok=True)
-
-  with out.open("w", newline="") as f:
-    w = csv.writer(f, delimiter=";")
+  out.parent.mkdir(parents = True, exist_ok = True)
+  with out.open("w", newline = "") as f:
+    w = csv.writer(f, delimiter = ";")
     w.writerow(["n_agents", "t_ms_avg", "t_ms_std"])
     w.writerows(rows)
 

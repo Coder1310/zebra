@@ -14,10 +14,10 @@ def update_belief_from_state(
   - про видимых игроков: их текущий дом (location).
   """
   b = BeliefState(
-    houses=dict(belief_state.houses),
-    pets=dict(belief_state.pets),
-    drinks=dict(belief_state.drinks),
-    smokes=dict(belief_state.smokes),
+    houses = dict(belief_state.houses),
+    pets = dict(belief_state.pets),
+    drinks = dict(belief_state.drinks),
+    smokes = dict(belief_state.smokes),
   )
 
   pid = player_state.player_id
@@ -50,10 +50,10 @@ def decide_action(
   direction = random.choice(["left", "right", "home"])
 
   action = Action(
-    player_id=player_state.player_id,
-    day=player_state.day,
-    type="move",
-    direction=direction,
+    player_id = player_state.player_id,
+    day = player_state.day,
+    type = "move",
+    direction = direction,
   )
 
   return action, new_belief

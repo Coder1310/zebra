@@ -18,12 +18,12 @@ def get_log() -> List[Dict[str, Any]]:
 
 def save_log_csv(events: List[Dict[str, Any]], filename: str = "data/logs/run1.csv") -> None:
   path = Path(filename)
-  path.parent.mkdir(parents=True, exist_ok=True)
+  path.parent.mkdir(parents = True, exist_ok = True)
 
   fieldnames = ["event_id", "day", "type", "who", "from_house", "to_house", "success"]
 
-  with path.open("w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=fieldnames)
+  with path.open("w", newline = "") as f:
+    writer = csv.DictWriter(f, fieldnames = fieldnames)
     writer.writeheader()
     for e in events:
       row = {name: e.get(name) for name in fieldnames}
@@ -71,7 +71,7 @@ def action_to_request(action: Action) -> Dict:
 
 def send_action(action: Action) -> None:
   body = action_to_request(action)
-  resp = requests.post(f"{BASE_URL}/action", json=body)
+  resp = requests.post(f"{BASE_URL}/action", json = body)
   resp.raise_for_status()
 
 
@@ -86,19 +86,19 @@ def main() -> None:
     # состояние ДО действия
     state_before = get_state(player_id)
     loc_before = state_before.you.get("location")
-    print(f"  before: location={loc_before}")
+    print(f"before: location = {loc_before}")
 
     action, belief = decide_action(state_before, belief)
     sa_value = calc_sa(belief)
 
     send_action(action)
-    print(f"  action: {action.type}, direction={action.direction}")
-    print(f"  SA: {sa_value:.2f}")
+    print(f"action: {action.type}, direction = {action.direction}")
+    print(f"SA: {sa_value:.2f}")
 
     # состояние ПОСЛЕ действия
     state_after = get_state(player_id)
     loc_after = state_after.you.get("location")
-    print(f"  after:  location={loc_after}")
+    print(f"after: location = {loc_after}")
     print()
 
   print("simulation finished")

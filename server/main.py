@@ -1,173 +1,139 @@
+from __future__ import annotations
+
+import time
+import uuid
+from pathlib import Path
+from typing import Any, Optional
+
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from typing import List, Literal, Optional, Dict
+from pydantic import BaseModel, Field, ConfigDict
 
-app = FastAPI()
-
-
-class VisiblePlayer(BaseModel):
-  player_id: str
-  house_id: int
-  is_at_home: bool
+from simulator.engine import run_session
 
 
-class Event(BaseModel):
-  event_id: int
-  day: int
-  type: str
-  who: Optional[str] = None
-  from_house: Optional[int] = None
-  to_house: Optional[int] = None
-  who1: Optional[str] = None
-  who2: Optional[str] = None
-  success: Optional[bool] = None
+ROOT_DIR = Path(__file__).resolve().parents[1]
+LOG_DIR = ROOT_DIR / "data" / "logs"
 
 
-class StateResponse(BaseModel):
-  day: int
-  player_id: str
-  you: Dict[str, str]
-  neighbors: Dict[str, int]
-  visible_players: List[VisiblePlayer]
-  events_since_last_turn: List[Event]
+class MTStrategy(BaseModel):
+  model_config = ConfigDict(extra="forbid")
+
+  p_left: int = Field(ge = 0, le = 100)
+  p_right: int = Field(ge = 0, le = 100)
+  p_home: int = Field(ge = 0, le = 100)
+  p_house_exch: int = Field(ge = 0, le = 100)
+  p_pet_exch: int = Field(ge = 0, le = 100)
 
 
-class ActionPayload(BaseModel):
-  direction: Optional[Literal["left", "right", "home"]] = None
-  accept_house_swap: Optional[bool] = None
-  accept_pet_swap: Optional[bool] = None
+class CreateSessionRequest(BaseModel):
+  model_config = ConfigDict(extra = "allow")
+
+  agents: int = Field(ge = 1, le = 20000, default = 6)
+  houses: int = Field(ge = 2, le = 50, default = 6)
+  days: int = Field(ge = 1, le = 20000, default = 200)
+
+  share: str = Field(default = "none")
+  noise: float = Field(ge = 0.0, le = 1.0, default = 0.0)
+  seed: Optional[int] = None
+
+  mt_who: Optional[str] = None
+  mt_strategy: Optional[MTStrategy] = None
 
 
-class ActionRequest(BaseModel):
-  player_id: str
-  day: int
-  type: Literal["move", "stay", "trade_response"]
-  payload: Optional[ActionPayload] = None
+class CreateSessionResponse(BaseModel):
+  session_id: str
 
 
-WORLD_STATE: Dict[str, dict] = {}
-CURRENT_DAY: int = 0
-EVENT_LOG: List[Event] = []
+class RunResponse(BaseModel):
+  status: str
+  session_id: str
+  csv: str
+  xml: str
+  metrics: str
+  finished_at: float
 
 
-def init_world() -> None:
-  global WORLD_STATE, CURRENT_DAY, EVENT_LOG
-  CURRENT_DAY = 0
-  EVENT_LOG = []
-  WORLD_STATE = {
-    "english": {
-      "house_id": 1,
-      "location": 1,
-      "nationality": "english",
-      "drink": "tea",
-      "smokes": "pall_mall",
-      "pet": "bird",
-    },
-    "german": {
-      "house_id": 2,
-      "location": 2,
-      "nationality": "german",
-      "drink": "coffee",
-      "smokes": "prince",
-      "pet": "fish",
-    },
+app = FastAPI(title = "Zebra SA Server")
+
+_sessions: dict[str, dict[str, Any]] = {}
+
+
+def _new_sid() -> str:
+  return uuid.uuid4().hex[:12]
+
+
+def _save_session(sid: str, cfg: dict[str, Any]) -> None:
+  _sessions[sid] = {
+    "created_at": time.time(),
+    "cfg": cfg,
+    "done": False,
+    "files": None,
   }
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-  init_world()
+def _normalize_cfg(req: CreateSessionRequest) -> dict[str, Any]:
+  cfg = req.model_dump()
+  if req.mt_strategy is not None:
+    cfg["mt_strategy"] = req.mt_strategy.model_dump()
+  return cfg
 
 
-@app.get("/state/{player_id}", response_model=StateResponse)
-def get_state(player_id: str) -> StateResponse:
-  if player_id not in WORLD_STATE:
-    raise HTTPException(status_code=404, detail="unknown player")
+@app.get("/health")
+def health() -> dict[str, str]:
+  return {"status": "ok"}
 
-  player = WORLD_STATE[player_id]
-  day = CURRENT_DAY
 
-  location = player["location"]
-  left_house_id = ((location - 2) % 6) + 1
-  right_house_id = (location % 6) + 1
+@app.post("/session", response_model=CreateSessionResponse)
+def create_session_alt(req: CreateSessionRequest) -> CreateSessionResponse:
+  return create_session(req)
 
-  visible_players: List[VisiblePlayer] = []
-  for pid, info in WORLD_STATE.items():
-    if pid == player_id:
-      continue
-    visible_players.append(
-      VisiblePlayer(
-        player_id = pid,
-        house_id = info["location"],
-        is_at_home = (info["location"] == info["house_id"]),
-      )
+
+@app.post("/session/create", response_model=CreateSessionResponse)
+def create_session(req: CreateSessionRequest) -> CreateSessionResponse:
+  LOG_DIR.mkdir(parents = True, exist_ok = True)
+  sid = _new_sid()
+  cfg = _normalize_cfg(req)
+  _save_session(sid, cfg)
+  return CreateSessionResponse(session_id = sid)
+
+
+def _run_and_return(sid: str) -> RunResponse:
+  if sid not in _sessions:
+    raise HTTPException(status_code = 404, detail = "unknown session_id")
+
+  s = _sessions[sid]
+  if s["done"] and s["files"] is not None:
+    files = s["files"]
+    return RunResponse(
+      status="done",
+      session_id = sid,
+      csv = str(files["csv"]),
+      xml = str(files["xml"]),
+      metrics = str(files["metrics"]),
+      finished_at = float(files["finished_at"]),
     )
 
-  day_events = [e for e in EVENT_LOG if e.day == day]
+  cfg = dict(s["cfg"])
+  files = run_session(session_id = sid, cfg = cfg, log_dir = LOG_DIR)
 
-  return StateResponse(
-    day = day,
-    player_id = player_id,
-    you = {
-      "house_id": str(player["house_id"]),
-      "location": str(player["location"]),
-      "nationality": player["nationality"],
-      "drink": player["drink"],
-      "smokes": player["smokes"],
-      "pet": player["pet"],
-    },
-    neighbors={
-      "left_house_id": left_house_id,
-      "right_house_id": right_house_id,
-    },
-    visible_players=visible_players,
-    events_since_last_turn=day_events,
+  s["done"] = True
+  s["files"] = files
+
+  return RunResponse(
+    status = "done",
+    session_id = sid,
+    csv = str(files["csv"]),
+    xml = str(files["xml"]),
+    metrics = str(files["metrics"]),
+    finished_at = float(files["finished_at"]),
   )
 
 
-@app.post("/action")
-def post_action(action: ActionRequest) -> dict:
-  if action.player_id not in WORLD_STATE:
-    raise HTTPException(status_code=404, detail = "unknown player")
+@app.post("/session/{sid}/run", response_model=RunResponse)
+def run_session_endpoint(sid: str) -> RunResponse:
+  return _run_and_return(sid)
 
-  player = WORLD_STATE[action.player_id]
 
-  if action.type == "move":
-    if action.payload is None or action.payload.direction is None:
-      raise HTTPException(status_code = 400, detail = "missing direction")
-
-    old_loc = player["location"]
-
-    if action.payload.direction == "left":
-      new_loc = ((old_loc - 2) % 6) + 1
-    elif action.payload.direction == "right":
-      new_loc = (old_loc % 6) + 1
-    elif action.payload.direction == "home":
-      new_loc = player["house_id"]
-    else:
-      raise HTTPException(status_code = 400, detail = "bad direction")
-
-    player["location"] = new_loc
-
-    event = Event(
-      event_id = len(EVENT_LOG) + 1,
-      day = action.day,
-      type = "visit",
-      who = action.player_id,
-      from_house = old_loc,
-      to_house = new_loc,
-      success = True,
-    )
-    EVENT_LOG.append(event)
-
-  return {"status": "ok"}
-
-@app.get("/log", response_model = List[Event])
-def get_log() -> List[Event]:
-  return EVENT_LOG
-
-@app.post("/tick")
-def tick() -> dict:
-  global CURRENT_DAY
-  CURRENT_DAY += 1
-  return {"day": CURRENT_DAY}
+@app.post("/session/{sid}/start", response_model=RunResponse)
+def start_session_endpoint(sid: str) -> RunResponse:
+  return _run_and_return(sid)

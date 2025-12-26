@@ -27,10 +27,10 @@ class PlayerState(BaseModel):
 
 
 class BeliefState(BaseModel):
-  houses: Dict[str, int] = Field(default_factory=dict)
-  pets: Dict[str, str] = Field(default_factory=dict)
-  drinks: Dict[str, str] = Field(default_factory=dict)
-  smokes: Dict[str, str] = Field(default_factory=dict)
+  houses: Dict[str, int] = Field(default_factory = dict)
+  pets: Dict[str, str] = Field(default_factory = dict)
+  drinks: Dict[str, str] = Field(default_factory = dict)
+  smokes: Dict[str, str] = Field(default_factory = dict)
 
 
 class Action(BaseModel):
