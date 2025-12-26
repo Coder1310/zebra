@@ -1,0 +1,15 @@
+# Core
+fastapi>=0.110
+uvicorn[standard]>=0.27
+requests>=2.31
+pydantic>=2.6
+pyyaml>=6.0
+
+# Plots / analysis
+matplotlib>=3.8
+
+# Telegram bot (aiogram v3)
+aiogram>=3.4
+
+# Optional (useful utils)
+python-dotenv>=1.0
